@@ -1,0 +1,45 @@
+name: Build unsigned IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build (no code signing)
+        run: |
+          xcodebuild -project LightVela.xcodeproj -scheme LightVela \
+            -configuration Release -sdk iphoneos -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+      - name: Package IPA
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/LightVela.app Payload/
+          zip -qry LightVela.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LightVela-unsigned-ipa
+          path: LightVela.ipa
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: LightVela build ${{ github.run_number }}
+          files: LightVela.ipa
